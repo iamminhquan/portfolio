@@ -17,7 +17,7 @@ export const styles: Record<string, CSSProperties> = {
   section: {
     position: "relative",
     width: "100%",
-    height: "100vh",
+    minHeight: "100vh",
     display: "flex",
     alignItems: "center",
   },
@@ -39,6 +39,7 @@ export const styles: Record<string, CSSProperties> = {
     color: "#ffffff",
     margin: 0,
     textShadow: "0 2px 20px rgba(0, 0, 0, 0.3)",
+    minHeight: "1.2em",
   },
   sectionTitle: {
     fontSize: "clamp(2rem, 5vw, 3.5rem)",
