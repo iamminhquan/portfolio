@@ -53,9 +53,9 @@ export const SECTIONS = [
   },
   {
     id: "contact",
-    camera: new Vector3(3, 1.5, 5),
+    camera: new Vector3(4.2, 2.0, 5.5),
     modelRotation: Math.PI * 1.7,
-    modelScale: 1.05,
+    modelScale: 0.55,
   },
 ];
 
