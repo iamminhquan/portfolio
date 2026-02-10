@@ -2,13 +2,15 @@
 
 /**
  * Main Scene component.
- * Orchestrates the fixed 3D canvas (with mouse/scroll tracking and
- * performance detection) and the scrollable HTML sections.
+ * Orchestrates the fixed 3D canvas (with mouse/scroll tracking,
+ * performance detection, studio lighting, and post-processing)
+ * and the scrollable HTML sections.
  */
 
 import { useEffect, Suspense, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Environment, OrbitControls } from "@react-three/drei";
+import { EffectComposer, Bloom, Vignette } from "@react-three/postprocessing";
 
 import { scrollState, mouseState, deviceState } from "./config/sections";
 import { SceneController } from "./scene/SceneController";
@@ -39,7 +41,7 @@ function CanvasFallback() {
 export default function Scene() {
   const [isLowPerf, setIsLowPerf] = useState(false);
 
-  /* performance detection */
+  /* performance + reduced-motion detection */
   useEffect(() => {
     const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     const cores = navigator.hardwareConcurrency || 4;
@@ -55,13 +57,27 @@ export default function Scene() {
     }
 
     if (isMobile) deviceState.isMobile = true;
+
+    /* reduced motion */
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    deviceState.reducedMotion = mq.matches;
+    if (mq.matches) {
+      deviceState.performance = "low";
+      setIsLowPerf(true);
+    }
+    const onMqChange = (e: MediaQueryListEvent) => {
+      deviceState.reducedMotion = e.matches;
+    };
+    mq.addEventListener("change", onMqChange);
+    return () => mq.removeEventListener("change", onMqChange);
   }, []);
 
   /* scroll tracking */
   useEffect(() => {
     const onScroll = () => {
       const maxScroll = document.body.scrollHeight - window.innerHeight;
-      scrollState.targetProgress = maxScroll > 0 ? window.scrollY / maxScroll : 0;
+      scrollState.targetProgress =
+        maxScroll > 0 ? window.scrollY / maxScroll : 0;
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
@@ -83,15 +99,18 @@ export default function Scene() {
       <div style={styles.canvasWrapper}>
         <Canvas
           shadows={!isLowPerf}
-          camera={{ position: [8, 6, 8], fov: 50 }}
+          camera={{ position: [8, 6, 8], fov: 45 }}
           dpr={isLowPerf ? 1 : [1, 1.5]}
+          gl={{ antialias: true }}
           style={{ width: "100%", height: "100%" }}
         >
-          {/* Lighting */}
-          <ambientLight intensity={0.2} color="#b0c4de" />
+          {/* ── Studio lighting ────────────────────────────── */}
+          <ambientLight intensity={0.06} color="#1a1a3e" />
+
+          {/* Key light — warm neutral */}
           <directionalLight
             position={[5, 8, 3]}
-            intensity={1.5}
+            intensity={0.7}
             color="#fff5e6"
             castShadow={!isLowPerf}
             shadow-mapSize-width={1024}
@@ -104,13 +123,31 @@ export default function Scene() {
             shadow-camera-bottom={-6}
             shadow-bias={-0.0001}
           />
+
+          {/* Rim light — cool blue accent */}
           <directionalLight
-            position={[-4, 3, -2]}
-            intensity={0.4}
-            color="#a0c4ff"
+            position={[-3, 2, -4]}
+            intensity={0.5}
+            color="#4fd1ff"
           />
 
-          {/* Scene objects */}
+          {/* Fill — soft accent */}
+          <directionalLight
+            position={[0, -2, 5]}
+            intensity={0.15}
+            color="#6b8cff"
+          />
+
+          {/* Core glow point light */}
+          <pointLight
+            position={[0, 0.5, 0]}
+            intensity={1.2}
+            color="#6b8cff"
+            distance={6}
+            decay={2}
+          />
+
+          {/* ── Scene objects ──────────────────────────────── */}
           <SceneController />
           <Environment preset="night" background={false} />
 
@@ -120,7 +157,7 @@ export default function Scene() {
             <ContactOrb />
           </Suspense>
 
-          {!isLowPerf && <Particles count={150} />}
+          {!isLowPerf && <Particles count={250} />}
           <Ground />
 
           <OrbitControls
@@ -128,6 +165,19 @@ export default function Scene() {
             enablePan={false}
             enableRotate={false}
           />
+
+          {/* ── Post-processing ────────────────────────────── */}
+          {!isLowPerf && (
+            <EffectComposer>
+              <Bloom
+                luminanceThreshold={0.4}
+                luminanceSmoothing={0.3}
+                intensity={0.7}
+                mipmapBlur
+              />
+              <Vignette eskil={false} offset={0.15} darkness={0.65} />
+            </EffectComposer>
+          )}
         </Canvas>
       </div>
 
