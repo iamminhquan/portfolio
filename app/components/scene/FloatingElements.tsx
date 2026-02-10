@@ -1,7 +1,8 @@
 /**
- * Floating geometric elements visible during the About and Skills sections.
- * Represents skills and creativity through abstract shapes that fade in/out
- * based on scroll progress.
+ * Ambient wireframe fragments orbiting the reactor core.
+ * Visible during About and Skills sections. Limited to two
+ * geometric families (octahedron + icosahedron wireframes)
+ * in a cool monochrome palette with slow elliptical orbits.
  */
 
 import { useRef, useMemo } from "react";
@@ -10,165 +11,200 @@ import { MathUtils } from "three";
 import type { Mesh, MeshStandardMaterial } from "three";
 import { scrollState } from "../config/sections";
 
-/* ── individual floating shape ──────────────────────────────────── */
+/* ── cool monochrome palette ─────────────────────────── */
 
-interface FloatingShapeProps {
-  position: [number, number, number];
-  geometry: "box" | "octahedron" | "icosahedron" | "tetrahedron" | "torus";
-  color: string;
-  size: number;
+const FRAG_COLORS = ["#4fd1ff", "#6b8cff", "#8aafff"];
+
+/* ── per-fragment configuration ──────────────────────── */
+
+interface FragmentCfg {
+  radius: number;
+  eccentricity: number;
   speed: number;
-  offset: number;
+  tilt: number;
+  startAngle: number;
+  yBase: number;
+  yBob: number;
+  yFreq: number;
+  size: number;
+  geo: "octahedron" | "icosahedron";
+  colorIdx: number;
+  emissive: number;
+  peakOpacity: number;
 }
 
-function FloatingShape({
-  position,
-  geometry,
-  color,
-  size,
-  speed,
-  offset,
-}: FloatingShapeProps) {
+/* ── single orbiting fragment ────────────────────────── */
+
+function Fragment({ cfg }: { cfg: FragmentCfg }) {
   const meshRef = useRef<Mesh>(null);
   const matRef = useRef<MeshStandardMaterial>(null);
 
   useFrame((state) => {
     if (!meshRef.current || !matRef.current) return;
-    const time = state.clock.elapsedTime;
+    const t = state.clock.elapsedTime;
 
-    // Visibility: fade in during about/skills sections (progress ~0.10–0.46)
-    // Adjusted for 800vh page (hero+about+skills+4×projects+contact)
-    const progress = scrollState.progress;
-    let targetOpacity = 0;
-
-    if (progress >= 0.1 && progress <= 0.46) {
-      if (progress < 0.18) {
-        targetOpacity = (progress - 0.1) / 0.08;
-      } else if (progress > 0.38) {
-        targetOpacity = 1 - (progress - 0.38) / 0.08;
-      } else {
-        targetOpacity = 1;
-      }
+    /* ── visibility envelope: about + skills (progress 0.10–0.46) ── */
+    const p = scrollState.progress;
+    let vis = 0;
+    if (p >= 0.1 && p <= 0.46) {
+      if (p < 0.18) vis = (p - 0.1) / 0.08;
+      else if (p > 0.38) vis = 1 - (p - 0.38) / 0.08;
+      else vis = 1;
     }
 
     matRef.current.opacity = MathUtils.lerp(
       matRef.current.opacity,
-      targetOpacity,
-      0.08
+      vis * cfg.peakOpacity,
+      0.06,
     );
-    meshRef.current.visible = matRef.current.opacity > 0.01;
+    meshRef.current.visible = matRef.current.opacity > 0.005;
 
-    // Float + drift
+    /* ── elliptical orbit ── */
+    const angle = cfg.startAngle + t * cfg.speed;
+    meshRef.current.position.x = Math.cos(angle) * cfg.radius;
+    meshRef.current.position.z =
+      Math.sin(angle) * cfg.radius * cfg.eccentricity;
+
+    /* vertical: base height + gentle bob + orbital tilt */
     meshRef.current.position.y =
-      position[1] + Math.sin(time * speed + offset) * 0.3;
-    meshRef.current.position.x =
-      position[0] + Math.cos(time * speed * 0.7 + offset) * 0.15;
+      cfg.yBase +
+      Math.sin(t * cfg.yFreq + cfg.startAngle) * cfg.yBob +
+      Math.sin(angle) * cfg.tilt * cfg.radius * 0.3;
 
-    // Spin
-    meshRef.current.rotation.x = time * speed * 0.5;
-    meshRef.current.rotation.y = time * speed * 0.3;
+    /* ── slow coherent tumble ── */
+    meshRef.current.rotation.x = t * cfg.speed * 0.8;
+    meshRef.current.rotation.z = t * cfg.speed * 0.5;
   });
 
+  const color = FRAG_COLORS[cfg.colorIdx % FRAG_COLORS.length];
+
   return (
-    <mesh ref={meshRef} position={position} castShadow>
-      {geometry === "box" && <boxGeometry args={[size, size, size]} />}
-      {geometry === "octahedron" && <octahedronGeometry args={[size]} />}
-      {geometry === "icosahedron" && <icosahedronGeometry args={[size, 0]} />}
-      {geometry === "tetrahedron" && <tetrahedronGeometry args={[size]} />}
-      {geometry === "torus" && (
-        <torusGeometry args={[size, size * 0.3, 16, 32]} />
+    <mesh ref={meshRef}>
+      {cfg.geo === "octahedron" ? (
+        <octahedronGeometry args={[cfg.size, 0]} />
+      ) : (
+        <icosahedronGeometry args={[cfg.size, 0]} />
       )}
       <meshStandardMaterial
         ref={matRef}
         color={color}
-        metalness={0.6}
-        roughness={0.3}
         emissive={color}
-        emissiveIntensity={0.15}
+        emissiveIntensity={cfg.emissive}
+        wireframe
         transparent
         opacity={0}
+        toneMapped={false}
       />
     </mesh>
   );
 }
 
-/* ── group of floating elements ─────────────────────────────────── */
+/* ── fragment group ──────────────────────────────────── */
 
 export function FloatingElements() {
-  const shapes = useMemo<FloatingShapeProps[]>(
+  const fragments = useMemo<FragmentCfg[]>(
     () => [
+      /* ── close ring — brighter, slightly larger ── */
       {
-        position: [-2.5, 1.5, -1],
-        geometry: "octahedron",
-        color: "#6b8cff",
-        size: 0.15,
-        speed: 0.8,
-        offset: 0,
+        radius: 1.7,
+        eccentricity: 0.85,
+        speed: 0.045,
+        tilt: 0.12,
+        startAngle: 0,
+        yBase: 0.6,
+        yBob: 0.12,
+        yFreq: 0.3,
+        size: 0.07,
+        geo: "octahedron",
+        colorIdx: 0,
+        emissive: 0.7,
+        peakOpacity: 0.3,
       },
       {
-        position: [2.8, 0.8, 1.5],
-        geometry: "box",
-        color: "#ff6b8c",
-        size: 0.12,
-        speed: 1.0,
-        offset: 1,
+        radius: 1.9,
+        eccentricity: 0.9,
+        speed: 0.035,
+        tilt: -0.08,
+        startAngle: Math.PI * 1.1,
+        yBase: 0.9,
+        yBob: 0.1,
+        yFreq: 0.25,
+        size: 0.055,
+        geo: "icosahedron",
+        colorIdx: 1,
+        emissive: 0.55,
+        peakOpacity: 0.25,
+      },
+      /* ── mid ring — medium presence ── */
+      {
+        radius: 2.6,
+        eccentricity: 0.82,
+        speed: 0.03,
+        tilt: 0.18,
+        startAngle: Math.PI * 0.4,
+        yBase: 1.4,
+        yBob: 0.18,
+        yFreq: 0.22,
+        size: 0.06,
+        geo: "octahedron",
+        colorIdx: 1,
+        emissive: 0.5,
+        peakOpacity: 0.22,
       },
       {
-        position: [-1.5, 2.2, 2],
-        geometry: "icosahedron",
-        color: "#8cff6b",
-        size: 0.13,
-        speed: 0.7,
-        offset: 2,
+        radius: 2.4,
+        eccentricity: 0.88,
+        speed: 0.025,
+        tilt: -0.14,
+        startAngle: Math.PI * 1.6,
+        yBase: 0.2,
+        yBob: 0.14,
+        yFreq: 0.2,
+        size: 0.05,
+        geo: "icosahedron",
+        colorIdx: 2,
+        emissive: 0.45,
+        peakOpacity: 0.2,
+      },
+      /* ── far ring — faint, atmospheric ── */
+      {
+        radius: 3.3,
+        eccentricity: 0.78,
+        speed: 0.02,
+        tilt: 0.22,
+        startAngle: Math.PI * 0.8,
+        yBase: 0.5,
+        yBob: 0.1,
+        yFreq: 0.18,
+        size: 0.04,
+        geo: "octahedron",
+        colorIdx: 2,
+        emissive: 0.35,
+        peakOpacity: 0.15,
       },
       {
-        position: [1.8, 1.8, -2],
-        geometry: "tetrahedron",
-        color: "#ffcf6b",
-        size: 0.14,
-        speed: 0.9,
-        offset: 3,
-      },
-      {
-        position: [-3, 0.5, 0.5],
-        geometry: "torus",
-        color: "#ff8c6b",
-        size: 0.1,
-        speed: 0.6,
-        offset: 4,
-      },
-      {
-        position: [3, 1.2, -0.5],
-        geometry: "octahedron",
-        color: "#8c6bff",
-        size: 0.11,
-        speed: 1.1,
-        offset: 5,
-      },
-      {
-        position: [-0.5, 2.5, -2.5],
-        geometry: "box",
-        color: "#6bffc4",
-        size: 0.09,
-        speed: 0.75,
-        offset: 6,
-      },
-      {
-        position: [0.5, 0.3, 3],
-        geometry: "icosahedron",
-        color: "#ff6bda",
-        size: 0.12,
-        speed: 0.85,
-        offset: 7,
+        radius: 3.5,
+        eccentricity: 0.75,
+        speed: 0.018,
+        tilt: -0.1,
+        startAngle: Math.PI * 1.9,
+        yBase: 1.8,
+        yBob: 0.08,
+        yFreq: 0.15,
+        size: 0.035,
+        geo: "icosahedron",
+        colorIdx: 0,
+        emissive: 0.3,
+        peakOpacity: 0.12,
       },
     ],
-    []
+    [],
   );
 
   return (
     <group>
-      {shapes.map((shape, i) => (
-        <FloatingShape key={i} {...shape} />
+      {fragments.map((cfg, i) => (
+        <Fragment key={i} cfg={cfg} />
       ))}
     </group>
   );
