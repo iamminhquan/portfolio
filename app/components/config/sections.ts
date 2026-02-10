@@ -9,7 +9,7 @@ import { Vector3 } from "three";
 export const SECTIONS = [
   {
     id: "hero",
-    camera: new Vector3(3, 2.5, 4),
+    camera: new Vector3(2.8, 1.6, 3.8),
     modelRotation: 0,
     modelScale: 1,
   },
@@ -53,4 +53,5 @@ export const mouseState = {
 export const deviceState = {
   performance: "high" as "high" | "medium" | "low",
   isMobile: false,
+  reducedMotion: false,
 };
