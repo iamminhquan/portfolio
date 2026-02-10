@@ -38,13 +38,13 @@ export function ContactOrb() {
       glowMatRef.current.opacity = coreMatRef.current.opacity * 0.3;
     }
 
-    // Floating motion
-    groupRef.current.position.y = 1.5 + Math.sin(time * 0.8) * 0.2;
-    groupRef.current.position.x = 2 + Math.cos(time * 0.5) * 0.15;
-    groupRef.current.position.z = -1 + Math.sin(time * 0.6) * 0.1;
+    // Floating motion — pushed deeper into background
+    groupRef.current.position.y = 1.8 + Math.sin(time * 0.6) * 0.12;
+    groupRef.current.position.x = 1.5 + Math.cos(time * 0.4) * 0.1;
+    groupRef.current.position.z = -2.5 + Math.sin(time * 0.5) * 0.08;
 
-    // Pulse scale
-    const pulse = 1 + Math.sin(time * 2) * 0.08;
+    // Gentle pulse
+    const pulse = 1 + Math.sin(time * 1.5) * 0.04;
     coreRef.current.scale.setScalar(pulse);
 
     // Rotate
@@ -53,29 +53,29 @@ export function ContactOrb() {
 
   return (
     <group ref={groupRef} visible={false}>
-      {/* Core */}
+      {/* Core — reduced for background role */}
       <mesh ref={coreRef}>
-        <sphereGeometry args={[0.25, 32, 32]} />
+        <sphereGeometry args={[0.15, 32, 32]} />
         <meshStandardMaterial
           ref={coreMatRef}
           color="#6b8cff"
           emissive="#6b8cff"
-          emissiveIntensity={0.8}
+          emissiveIntensity={0.5}
           transparent
           opacity={0}
           metalness={0.2}
-          roughness={0.1}
+          roughness={0.15}
         />
       </mesh>
 
-      {/* Glow shell */}
-      <mesh scale={1.5}>
-        <sphereGeometry args={[0.25, 16, 16]} />
+      {/* Glow shell — softer, more atmospheric */}
+      <mesh scale={1.8}>
+        <sphereGeometry args={[0.15, 16, 16]} />
         <meshStandardMaterial
           ref={glowMatRef}
           color="#6b8cff"
           emissive="#6b8cff"
-          emissiveIntensity={0.3}
+          emissiveIntensity={0.15}
           transparent
           opacity={0}
           side={2} /* DoubleSide */
@@ -101,7 +101,7 @@ function OrbParticle({ index }: { index: number }) {
     if (!ref.current) return;
     const time = state.clock.elapsedTime;
     const angle = (index / 3) * Math.PI * 2 + time * (1 + index * 0.3);
-    const radius = 0.45 + index * 0.05;
+    const radius = 0.3 + index * 0.04;
 
     ref.current.position.x = Math.cos(angle) * radius;
     ref.current.position.y = Math.sin(angle * 0.7) * 0.15;
@@ -110,11 +110,11 @@ function OrbParticle({ index }: { index: number }) {
 
   return (
     <mesh ref={ref}>
-      <sphereGeometry args={[0.03, 8, 8]} />
+      <sphereGeometry args={[0.02, 8, 8]} />
       <meshStandardMaterial
         color={ORB_COLORS[index]}
         emissive={ORB_COLORS[index]}
-        emissiveIntensity={0.5}
+        emissiveIntensity={0.3}
       />
     </mesh>
   );
