@@ -36,15 +36,16 @@ function FloatingShape({
     if (!meshRef.current || !matRef.current) return;
     const time = state.clock.elapsedTime;
 
-    // Visibility: fade in during about/skills sections (progress ~0.10–0.65)
+    // Visibility: fade in during about/skills sections (progress ~0.10–0.46)
+    // Adjusted for 800vh page (hero+about+skills+4×projects+contact)
     const progress = scrollState.progress;
     let targetOpacity = 0;
 
-    if (progress >= 0.1 && progress <= 0.7) {
-      if (progress < 0.2) {
-        targetOpacity = (progress - 0.1) / 0.1;
-      } else if (progress > 0.6) {
-        targetOpacity = 1 - (progress - 0.6) / 0.1;
+    if (progress >= 0.1 && progress <= 0.46) {
+      if (progress < 0.18) {
+        targetOpacity = (progress - 0.1) / 0.08;
+      } else if (progress > 0.38) {
+        targetOpacity = 1 - (progress - 0.38) / 0.08;
       } else {
         targetOpacity = 1;
       }

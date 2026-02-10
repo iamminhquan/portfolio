@@ -19,11 +19,12 @@ export function ContactOrb() {
     if (!groupRef.current || !coreRef.current || !coreMatRef.current) return;
     const time = state.clock.elapsedTime;
 
-    // Fade in during contact section (progress ≥ 0.72)
+    // Fade in near end of projects / contact section (progress ≥ 0.85)
+    // Adjusted for 800vh page (contact starts at ~progress 1.0)
     const progress = scrollState.progress;
     let targetOpacity = 0;
-    if (progress >= 0.72) {
-      targetOpacity = Math.min(1, (progress - 0.72) / 0.13);
+    if (progress >= 0.85) {
+      targetOpacity = Math.min(1, (progress - 0.85) / 0.12);
     }
 
     coreMatRef.current.opacity = MathUtils.lerp(
