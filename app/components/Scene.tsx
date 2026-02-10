@@ -20,16 +20,25 @@ import { WorkSection } from "./sections/WorkSection";
 import { ContactSection } from "./sections/ContactSection";
 import { styles } from "./styles/styles";
 
-export default function Scene() {
+  /* scroll tracking */
   useEffect(() => {
-    const handleScroll = () => {
-      const scrollY = window.scrollY;
+    const onScroll = () => {
       const maxScroll = document.body.scrollHeight - window.innerHeight;
-      scrollState.targetProgress = maxScroll > 0 ? scrollY / maxScroll : 0;
+      scrollState.targetProgress =
+        maxScroll > 0 ? window.scrollY / maxScroll : 0;
     };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
+  /* mouse tracking (normalised –1 … 1) */
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      mouseState.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouseState.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    };
+    window.addEventListener("mousemove", onMove, { passive: true });
+    return () => window.removeEventListener("mousemove", onMove);
   }, []);
 
   return (
@@ -37,18 +46,23 @@ export default function Scene() {
       {/* Fixed 3D Canvas */}
       <div style={styles.canvasWrapper}>
         <Canvas
-          shadows
-          camera={{ position: [8, 6, 8], fov: 50 }}
+          shadows={!isLowPerf}
+          camera={{ position: [8, 6, 8], fov: 45 }}
+          dpr={isLowPerf ? 1 : [1, 1.5]}
+          gl={{ antialias: true }}
           style={{ width: "100%", height: "100%" }}
         >
-          <ambientLight intensity={0.15} color="#b0c4de" />
+          {/* ── Studio lighting ────────────────────────────── */}
+          <ambientLight intensity={0.06} color="#1a1a3e" />
+
+          {/* Key light — warm neutral */}
           <directionalLight
             position={[5, 8, 3]}
-            intensity={1.5}
+            intensity={0.7}
             color="#fff5e6"
-            castShadow
-            shadow-mapSize-width={2048}
-            shadow-mapSize-height={2048}
+            castShadow={!isLowPerf}
+            shadow-mapSize-width={1024}
+            shadow-mapSize-height={1024}
             shadow-camera-near={0.5}
             shadow-camera-far={25}
             shadow-camera-left={-6}
@@ -56,30 +70,71 @@ export default function Scene() {
             shadow-camera-top={6}
             shadow-camera-bottom={-6}
             shadow-bias={-0.0001}
-            shadow-radius={1.5}
           />
+
+          {/* Rim light — cool blue accent */}
           <directionalLight
-            position={[-4, 3, -2]}
-            intensity={0.4}
-            color="#a0c4ff"
+            position={[-3, 2, -4]}
+            intensity={0.5}
+            color="#4fd1ff"
           />
+
+          {/* Fill — soft accent */}
+          <directionalLight
+            position={[0, -2, 5]}
+            intensity={0.15}
+            color="#6b8cff"
+          />
+
+          {/* Core glow point light */}
+          <pointLight
+            position={[0, 0.5, 0]}
+            intensity={1.2}
+            color="#6b8cff"
+            distance={6}
+            decay={2}
+          />
+
+          {/* ── Scene objects ──────────────────────────────── */}
           <SceneController />
-          <Environment preset="studio" background={false} />
-          <PlaceholderModel />
+          <Environment preset="night" background={false} />
+
+          <Suspense fallback={<CanvasFallback />}>
+            <HeroModel />
+            <FloatingElements />
+            <ContactOrb />
+          </Suspense>
+
+          {!isLowPerf && <Particles count={250} />}
           <Ground />
+
           <OrbitControls
             enableZoom={false}
             enablePan={false}
             enableRotate={false}
           />
+
+          {/* ── Post-processing ────────────────────────────── */}
+          {!isLowPerf && (
+            <EffectComposer>
+              <Bloom
+                luminanceThreshold={0.4}
+                luminanceSmoothing={0.3}
+                intensity={0.7}
+                mipmapBlur
+              />
+              <Vignette eskil={false} offset={0.15} darkness={0.65} />
+            </EffectComposer>
+          )}
         </Canvas>
       </div>
 
-      {/* Scrollable Sections */}
+      {/* Scrollable HTML Sections */}
       <main style={styles.main}>
         <HeroSection />
         <AboutSection />
-        <WorkSection />
+        <SkillsSection />
+        <ProjectsSection />
         <ContactSection />
       </main>
     </>

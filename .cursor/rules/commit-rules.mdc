@@ -1,0 +1,45 @@
+---
+alwaysApply: true
+---
+
+Commit Message Rules
+
+Follow these rules strictly when generating commit messages.
+
+Format:
+<type>: <short description>
+
+Rules:
+- Maximum 72 characters total
+- Single line only
+- No trailers (no co-author lines)
+- No multi-line explanations
+- No emojis
+- No AI-style formal wording
+- Write like a developer leaving notes to their future self
+- Focus on WHAT changed, not WHY in detail
+- Use direct verbs (add, move, split, remove, fix, clean, update)
+
+Allowed commit types:
+feat      → new feature
+fix       → bug fix
+refactor  → structure change without behavior change
+chore     → maintenance / cleanup / config
+docs      → documentation only
+style     → formatting or lint-only changes
+
+Good examples:
+refactor: split scene into modular components
+chore: clean up unused imports
+feat: add contact section
+docs: update project structure in README
+fix: correct scroll interpolation bug
+
+Bad examples:
+❌ long explanations
+❌ multi-line commits
+❌ AI-generated formal summaries
+❌ co-author trailers
+❌ vague messages like "update code"
+
+Commit messages must be short, human, and easy to read months later.
