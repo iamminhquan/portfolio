@@ -2,23 +2,80 @@
 
 /**
  * Main Scene component.
- * Handles scroll tracking and assembles the fixed 3D canvas
- * with scrollable UI sections. All logic is delegated to sub-modules.
+ * Orchestrates the fixed 3D canvas (with mouse/scroll tracking,
+ * performance detection, studio lighting, and post-processing)
+ * and the scrollable HTML sections.
  */
 
-import { useEffect } from "react";
+import { useEffect, Suspense, useState, startTransition } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Environment, OrbitControls } from "@react-three/drei";
+import { EffectComposer, Bloom, Vignette } from "@react-three/postprocessing";
 
-import { scrollState } from "./config/sections";
+import { scrollState, mouseState, deviceState } from "./config/sections";
 import { SceneController } from "./scene/SceneController";
-import { PlaceholderModel } from "./scene/PlaceholderModel";
+import { HeroModel } from "./scene/HeroModel";
+import { FloatingElements } from "./scene/FloatingElements";
+import { ContactOrb } from "./scene/ContactOrb";
+import { Particles } from "./scene/Particles";
 import { Ground } from "./scene/Ground";
 import { HeroSection } from "./sections/HeroSection";
 import { AboutSection } from "./sections/AboutSection";
-import { WorkSection } from "./sections/WorkSection";
+import { SkillsSection } from "./sections/SkillsSection";
+import { ProjectsSection } from "./sections/ProjectsSection";
 import { ContactSection } from "./sections/ContactSection";
 import { styles } from "./styles/styles";
+
+/* ── loading fallback shown while the canvas initialises ────────── */
+
+function CanvasFallback() {
+  return (
+    <mesh>
+      <boxGeometry args={[0, 0, 0]} />
+    </mesh>
+  );
+}
+
+/* ── root component ─────────────────────────────────────────────── */
+
+export default function Scene() {
+  const [isLowPerf, setIsLowPerf] = useState(false);
+
+  /* performance + reduced-motion detection */
+  useEffect(() => {
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const cores = navigator.hardwareConcurrency || 4;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const memory = (navigator as any).deviceMemory || 8;
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+    let lowPerf = false;
+
+    if (isMobile || cores <= 2 || memory <= 2) {
+      deviceState.performance = "low";
+      deviceState.isMobile = true;
+      lowPerf = true;
+    } else if (cores <= 4 || memory <= 4) {
+      deviceState.performance = "medium";
+    }
+
+    if (isMobile) deviceState.isMobile = true;
+
+    deviceState.reducedMotion = mq.matches;
+    if (mq.matches) {
+      deviceState.performance = "low";
+      lowPerf = true;
+    }
+
+    /* deferred state update avoids synchronous cascade */
+    if (lowPerf) startTransition(() => setIsLowPerf(true));
+
+    const onMqChange = (e: MediaQueryListEvent) => {
+      deviceState.reducedMotion = e.matches;
+    };
+    mq.addEventListener("change", onMqChange);
+    return () => mq.removeEventListener("change", onMqChange);
+  }, []);
 
   /* scroll tracking */
   useEffect(() => {
