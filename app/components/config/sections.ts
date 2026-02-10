@@ -25,11 +25,31 @@ export const SECTIONS = [
     modelRotation: Math.PI,
     modelScale: 0.85,
   },
+  /* ── project sub-sections — camera pulled back, orb scaled down
+       so the reactor becomes a background accent ──────────────── */
   {
-    id: "projects",
-    camera: new Vector3(3.5, 2, 3),
-    modelRotation: Math.PI * 1.3,
-    modelScale: 0.95,
+    id: "projects-1",
+    camera: new Vector3(4.0, 2.2, 3.6),
+    modelRotation: Math.PI * 1.15,
+    modelScale: 0.6,
+  },
+  {
+    id: "projects-2",
+    camera: new Vector3(3.8, 2.5, 3.9),
+    modelRotation: Math.PI * 1.25,
+    modelScale: 0.58,
+  },
+  {
+    id: "projects-3",
+    camera: new Vector3(4.2, 2.1, 3.4),
+    modelRotation: Math.PI * 1.35,
+    modelScale: 0.59,
+  },
+  {
+    id: "projects-4",
+    camera: new Vector3(3.9, 2.3, 3.7),
+    modelRotation: Math.PI * 1.45,
+    modelScale: 0.6,
   },
   {
     id: "contact",
