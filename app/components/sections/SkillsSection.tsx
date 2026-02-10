@@ -1,115 +1,182 @@
 "use client";
 
 /**
- * Skills & Tools section with an animated grid of skill badges.
- * Each badge has a colored dot, hover lift, and spring-in animation.
+ * Skills section — grouped skill chips with category labels,
+ * glassmorphism cards, and smooth micro-interactions.
  */
 
 import { useRef } from "react";
-import { motion, useInView } from "framer-motion";
+import { motion, useInView, useReducedMotion } from "framer-motion";
 import { styles } from "../styles/styles";
 
-const skills = [
-  { name: "React", color: "#61dafb" },
-  { name: "Next.js", color: "#ffffff" },
-  { name: "TypeScript", color: "#3178c6" },
-  { name: "Three.js", color: "#049ef4" },
-  { name: "R3F", color: "#6b8cff" },
-  { name: "Node.js", color: "#339933" },
-  { name: "Tailwind", color: "#06b6d4" },
-  { name: "Framer Motion", color: "#ff0080" },
-  { name: "Git", color: "#f05032" },
-  { name: "PostgreSQL", color: "#336791" },
-  { name: "Docker", color: "#2496ed" },
-  { name: "AWS", color: "#ff9900" },
+interface SkillGroup {
+  label: string;
+  accent: string;
+  items: string[];
+}
+
+const groups: SkillGroup[] = [
+  {
+    label: "Frontend",
+    accent: "#6b8cff",
+    items: ["React", "Next.js", "TypeScript", "Tailwind", "Framer Motion"],
+  },
+  {
+    label: "3D & Real-time",
+    accent: "#4fd1ff",
+    items: ["Three.js", "React Three Fiber"],
+  },
+  {
+    label: "Backend & Tools",
+    accent: "#8aafff",
+    items: ["Node.js", "PostgreSQL", "Docker", "AWS", "Git"],
+  },
 ];
 
 export function SkillsSection() {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
+  const reduced = useReducedMotion();
+
+  const ease = [0.25, 0.1, 0.25, 1] as [number, number, number, number];
+
+  const reveal = (delay: number) => ({
+    hidden: { opacity: 0, y: 16 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: {
+        duration: reduced ? 0 : 0.7,
+        delay: reduced ? 0 : delay,
+        ease,
+      },
+    },
+  });
 
   return (
     <section ref={ref} id="skills" style={styles.section}>
-      <div style={{ ...styles.content, maxWidth: "700px" }}>
-        <motion.h2
-          style={styles.sectionTitle}
-          initial={{ opacity: 0, y: 30 }}
-          animate={isInView ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.7 }}
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          padding: "0 7vw",
+          maxWidth: "640px",
+          pointerEvents: "none",
+        }}
+      >
+        {/* eyebrow */}
+        <motion.span
+          style={{
+            fontSize: "0.7rem",
+            fontWeight: 500,
+            color: "#4fd1ff",
+            letterSpacing: "0.25em",
+            textTransform: "uppercase",
+            marginBottom: "1.5rem",
+            fontFamily: "var(--font-geist-mono), monospace",
+          }}
+          variants={reveal(0.1)}
+          initial="hidden"
+          animate={isInView ? "visible" : "hidden"}
         >
-          Skills &amp; Tools
-        </motion.h2>
+          Toolkit
+        </motion.span>
 
+        {/* subtitle */}
         <motion.p
-          style={styles.sectionText}
-          initial={{ opacity: 0, y: 20 }}
-          animate={isInView ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.7, delay: 0.2 }}
+          style={{
+            fontSize: "clamp(0.92rem, 1.4vw, 1.05rem)",
+            color: "rgba(255, 255, 255, 0.5)",
+            lineHeight: 1.6,
+            margin: 0,
+            maxWidth: "380px",
+          }}
+          variants={reveal(0.3)}
+          initial="hidden"
+          animate={isInView ? "visible" : "hidden"}
         >
-          Technologies I work with to bring ideas to life.
+          Technologies and tools I reach for when building for the modern web.
         </motion.p>
 
-        {/* Skill grid */}
+        {/* skill groups */}
         <div
           style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))",
-            gap: "0.75rem",
-            marginTop: "2rem",
-            width: "100%",
-            pointerEvents: "auto",
+            marginTop: "2.5rem",
+            display: "flex",
+            flexDirection: "column",
+            gap: "2rem",
           }}
         >
-          {skills.map((skill, i) => (
-            <motion.div
-              key={skill.name}
-              initial={{ opacity: 0, scale: 0.5, y: 30 }}
-              animate={isInView ? { opacity: 1, scale: 1, y: 0 } : {}}
-              transition={{
-                duration: 0.5,
-                delay: 0.3 + i * 0.06,
-                type: "spring",
-                stiffness: 200,
-              }}
-              whileHover={{
-                scale: 1.08,
-                y: -4,
-                boxShadow: `0 8px 30px ${skill.color}33`,
-              }}
-              style={{
-                padding: "0.9rem 0.5rem",
-                borderRadius: "12px",
-                backgroundColor: "rgba(255, 255, 255, 0.05)",
-                border: `1px solid ${skill.color}22`,
-                backdropFilter: "blur(10px)",
-                cursor: "default",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: "0.5rem",
-              }}
-            >
-              <div
-                style={{
-                  width: "8px",
-                  height: "8px",
-                  borderRadius: "50%",
-                  backgroundColor: skill.color,
-                  boxShadow: `0 0 10px ${skill.color}66`,
-                }}
-              />
-              <span
-                style={{
-                  fontSize: "0.8rem",
-                  color: "rgba(255, 255, 255, 0.9)",
-                  fontWeight: 500,
-                  textAlign: "center",
-                }}
+          {groups.map((group, gi) => {
+            const groupDelay = 0.5 + gi * 0.25;
+            return (
+              <motion.div
+                key={group.label}
+                variants={reveal(groupDelay)}
+                initial="hidden"
+                animate={isInView ? "visible" : "hidden"}
               >
-                {skill.name}
-              </span>
-            </motion.div>
-          ))}
+                {/* category label */}
+                <span
+                  style={{
+                    fontSize: "0.65rem",
+                    fontWeight: 500,
+                    color: group.accent,
+                    letterSpacing: "0.2em",
+                    textTransform: "uppercase",
+                    fontFamily: "var(--font-geist-mono), monospace",
+                    marginBottom: "0.75rem",
+                    display: "block",
+                  }}
+                >
+                  {group.label}
+                </span>
+
+                {/* chips */}
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "0.5rem",
+                    pointerEvents: "auto",
+                  }}
+                >
+                  {group.items.map((skill, si) => (
+                    <motion.span
+                      key={skill}
+                      initial={{ opacity: 0, scale: 0.85 }}
+                      animate={isInView ? { opacity: 1, scale: 1 } : {}}
+                      transition={{
+                        duration: reduced ? 0 : 0.4,
+                        delay: reduced ? 0 : groupDelay + 0.15 + si * 0.06,
+                        ease,
+                      }}
+                      whileHover={{
+                        scale: 1.06,
+                        boxShadow: `0 0 20px ${group.accent}25, 0 0 40px ${group.accent}10`,
+                        borderColor: `${group.accent}50`,
+                      }}
+                      style={{
+                        padding: "0.5rem 1rem",
+                        fontSize: "0.8rem",
+                        fontWeight: 500,
+                        color: "rgba(255, 255, 255, 0.8)",
+                        backgroundColor: "rgba(255, 255, 255, 0.04)",
+                        border: "1px solid rgba(255, 255, 255, 0.08)",
+                        borderRadius: "8px",
+                        cursor: "default",
+                        backdropFilter: "blur(8px)",
+                        WebkitBackdropFilter: "blur(8px)",
+                        transition: "border-color 0.3s, box-shadow 0.3s",
+                      }}
+                    >
+                      {skill}
+                    </motion.span>
+                  ))}
+                </div>
+              </motion.div>
+            );
+          })}
         </div>
       </div>
     </section>
