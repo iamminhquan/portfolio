@@ -23,3 +23,33 @@ export const Easing = {
   /** Hermite smoothstep — zero-derivative at both ends. */
   smoothstep:    (t: number) => t * t * (3 - 2 * t),
 } as const;
+
+/**
+ * Trapezoidal visibility envelope.
+ *
+ * Returns 0 → 1 → 0 as `progress` moves through fade-in, hold, and
+ * fade-out zones. Useful for components that appear during a range
+ * of the timeline and fade at the edges.
+ *
+ *   0 ──┐        ┌── 0
+ *       │ fadeIn  │ fadeOut
+ *       └────1───┘
+ *
+ * @param progress   Global timeline progress (0 → 1).
+ * @param fadeIn     [start, end] — progress range for the fade-in ramp.
+ * @param fadeOut    [start, end] — progress range for the fade-out ramp.
+ * @returns          0 → 1 visibility multiplier.
+ */
+export function envelope(
+  progress: number,
+  fadeIn: readonly [number, number],
+  fadeOut: readonly [number, number],
+): number {
+  if (progress < fadeIn[0]) return 0;
+  if (progress < fadeIn[1])
+    return (progress - fadeIn[0]) / (fadeIn[1] - fadeIn[0]);
+  if (progress < fadeOut[0]) return 1;
+  if (progress < fadeOut[1])
+    return 1 - (progress - fadeOut[0]) / (fadeOut[1] - fadeOut[0]);
+  return 0;
+}
