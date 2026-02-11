@@ -1,13 +1,24 @@
 /**
  * Animated glowing orb that fades in during the Contact section.
- * Features a pulsing core, a glow shell, and orbiting particles.
+ *
+ * ── Migration notes ───────────────────────────────────────────────
+ * Visibility is now driven by useChapterProgress("contact") instead
+ * of reading scrollState.progress directly. Fade timing is extracted
+ * to the CONTACT_ORB config in animation.config.ts.
+ *
+ * Time-based motion (float, pulse, rotation) is unchanged —
+ * it runs off the clock, not the timeline.
+ *
+ * Performance: all mutation in useFrame via refs. Zero re-renders.
  */
 
 import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { MathUtils } from "three";
 import type { Mesh, Group, MeshStandardMaterial } from "three";
-import { scrollState } from "../config/sections";
+
+import { useChapterProgress } from "./Hooks/useChapterProgress";
+import { CONTACT_ORB } from "../config/animation.config";
 
 export function ContactOrb() {
   const groupRef = useRef<Group>(null);
@@ -15,22 +26,24 @@ export function ContactOrb() {
   const coreMatRef = useRef<MeshStandardMaterial>(null);
   const glowMatRef = useRef<MeshStandardMaterial>(null);
 
+  /* ── timeline hook (stable getter, no re-render) ────────────── */
+  const getContact = useChapterProgress("contact");
+
   useFrame((state) => {
     if (!groupRef.current || !coreRef.current || !coreMatRef.current) return;
     const time = state.clock.elapsedTime;
 
-    // Fade in near end of projects / contact section (progress ≥ 0.85)
-    // Adjusted for 800vh page (contact starts at ~progress 1.0)
-    const progress = scrollState.progress;
-    let targetOpacity = 0;
-    if (progress >= 0.85) {
-      targetOpacity = Math.min(1, (progress - 0.85) / 0.12);
-    }
+    /* ── fade in via chapter progress + config ─────────────────── */
+    const contactT = getContact();
+    const range = CONTACT_ORB.fadeEnd - CONTACT_ORB.fadeStart;
+    const targetOpacity = range > 0
+      ? MathUtils.clamp((contactT - CONTACT_ORB.fadeStart) / range, 0, 1)
+      : contactT > 0 ? 1 : 0;
 
     coreMatRef.current.opacity = MathUtils.lerp(
       coreMatRef.current.opacity,
       targetOpacity,
-      0.08
+      0.08,
     );
     groupRef.current.visible = coreMatRef.current.opacity > 0.01;
 
@@ -38,22 +51,22 @@ export function ContactOrb() {
       glowMatRef.current.opacity = coreMatRef.current.opacity * 0.3;
     }
 
-    // Floating motion — pushed deeper into background
+    /* ── floating motion (time-based) ──────────────────────────── */
     groupRef.current.position.y = 1.8 + Math.sin(time * 0.6) * 0.12;
     groupRef.current.position.x = 1.5 + Math.cos(time * 0.4) * 0.1;
     groupRef.current.position.z = -2.5 + Math.sin(time * 0.5) * 0.08;
 
-    // Gentle pulse
+    /* ── gentle pulse (time-based) ─────────────────────────────── */
     const pulse = 1 + Math.sin(time * 1.5) * 0.04;
     coreRef.current.scale.setScalar(pulse);
 
-    // Rotate
+    /* ── rotation (time-based) ─────────────────────────────────── */
     groupRef.current.rotation.y = time * 0.3;
   });
 
   return (
     <group ref={groupRef} visible={false}>
-      {/* Core — reduced for background role */}
+      {/* Core */}
       <mesh ref={coreRef}>
         <sphereGeometry args={[0.15, 32, 32]} />
         <meshStandardMaterial
@@ -68,7 +81,7 @@ export function ContactOrb() {
         />
       </mesh>
 
-      {/* Glow shell — softer, more atmospheric */}
+      {/* Glow shell */}
       <mesh scale={1.8}>
         <sphereGeometry args={[0.15, 16, 16]} />
         <meshStandardMaterial
@@ -78,7 +91,7 @@ export function ContactOrb() {
           emissiveIntensity={0.15}
           transparent
           opacity={0}
-          side={2} /* DoubleSide */
+          side={2}
         />
       </mesh>
 
@@ -90,7 +103,7 @@ export function ContactOrb() {
   );
 }
 
-/* ── tiny orbiting sphere ──────────────────────────────────────── */
+/* ── tiny orbiting sphere (time-based only) ────────────────────── */
 
 const ORB_COLORS = ["#ff6b8c", "#8cff6b", "#ffcf6b"];
 

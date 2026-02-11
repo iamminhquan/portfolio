@@ -1,15 +1,27 @@
 /**
  * ReactorCore — futuristic energy device centerpiece.
- * Layered geometric structure with emissive materials,
- * rotating wireframe shells, orbital energy rings, and
- * floating data nodes. Reacts to scroll and mouse input.
+ *
+ * ── Migration notes ───────────────────────────────────────────────
+ * All scroll-driven animation now reads from the timeline system:
+ *   - Rotation + scale: useWaypointValue(REACTOR_WAYPOINTS, key)
+ *   - No direct scroll access — all data flows through timeline hooks.
+ *
+ * Time-based animation (core pulse, shell spin, ring orbits, glow)
+ * is NOT timeline-driven — it uses the clock and respects reducedMotion.
+ *
+ * Mouse reactivity uses the shared mouseState store (input, not scroll).
+ *
+ * Performance: all mutation happens in useFrame; React never re-renders.
  */
 
 import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { MathUtils, AdditiveBlending } from "three";
+import { MathUtils } from "three";
 import type { Group, Mesh } from "three";
-import { SECTIONS, scrollState, mouseState, deviceState } from "../config/sections";
+
+import { mouseState, deviceState } from "../config/sections";
+import { useWaypointValue } from "./Hooks/useWaypointValue";
+import { REACTOR_WAYPOINTS } from "../config/animation.config";
 
 export function HeroModel() {
   const groupRef = useRef<Group>(null);
@@ -21,37 +33,25 @@ export function HeroModel() {
   const ring3Ref = useRef<Mesh>(null);
   const glowRef = useRef<Mesh>(null);
 
+  /* ── timeline-driven values (stable getters, no re-render) ──── */
+
+  const getRotation = useWaypointValue(REACTOR_WAYPOINTS, "rotation");
+  const getScale = useWaypointValue(REACTOR_WAYPOINTS, "scale");
+
   useFrame((state) => {
     if (!groupRef.current) return;
 
     const t = state.clock.elapsedTime;
     const speed = deviceState.reducedMotion ? 0 : 1;
 
-    /* ── scroll-driven rotation & scale ───────────────────────── */
-    const totalSections = SECTIONS.length;
-    const sp = scrollState.progress * (totalSections - 1);
-    const cur = Math.floor(Math.min(sp, totalSections - 2));
-    const nxt = Math.min(cur + 1, totalSections - 1);
-    const frac = sp - cur;
+    /* ── scroll-driven rotation & scale (via timeline) ─────────── */
+    groupRef.current.rotation.y = getRotation() + t * 0.08 * speed;
+    groupRef.current.scale.setScalar(getScale());
 
-    const targetRot = MathUtils.lerp(
-      SECTIONS[cur].modelRotation,
-      SECTIONS[nxt].modelRotation,
-      frac,
-    );
-    const targetScale = MathUtils.lerp(
-      SECTIONS[cur].modelScale,
-      SECTIONS[nxt].modelScale,
-      frac,
-    );
-
-    groupRef.current.rotation.y = targetRot + t * 0.08 * speed;
-    groupRef.current.scale.setScalar(targetScale);
-
-    /* ── gentle float ─────────────────────────────────────────── */
+    /* ── gentle float ──────────────────────────────────────────── */
     groupRef.current.position.y = Math.sin(t * 0.4) * 0.06 * speed;
 
-    /* ── mouse reactivity ─────────────────────────────────────── */
+    /* ── mouse reactivity (input-driven, not scroll) ───────────── */
     const mx = mouseState.x * 0.12;
     const my = mouseState.y * 0.12;
     groupRef.current.rotation.x = MathUtils.lerp(
@@ -65,13 +65,13 @@ export function HeroModel() {
       0.04,
     );
 
-    /* ── core pulse ───────────────────────────────────────────── */
+    /* ── core pulse (time-based) ───────────────────────────────── */
     if (coreRef.current) {
       const pulse = 1 + Math.sin(t * 1.5) * 0.03 * speed;
       coreRef.current.scale.setScalar(pulse);
     }
 
-    /* ── shell rotations ──────────────────────────────────────── */
+    /* ── shell rotations (time-based) ──────────────────────────── */
     if (shell1Ref.current) {
       shell1Ref.current.rotation.x = t * 0.15 * speed;
       shell1Ref.current.rotation.z = t * 0.1 * speed;
@@ -81,12 +81,12 @@ export function HeroModel() {
       shell2Ref.current.rotation.x = t * 0.08 * speed;
     }
 
-    /* ── ring orbits ──────────────────────────────────────────── */
+    /* ── ring orbits (time-based) ──────────────────────────────── */
     if (ring1Ref.current) ring1Ref.current.rotation.x = t * 0.2 * speed;
     if (ring2Ref.current) ring2Ref.current.rotation.y = t * 0.18 * speed;
     if (ring3Ref.current) ring3Ref.current.rotation.z = t * 0.15 * speed;
 
-    /* ── glow breath ──────────────────────────────────────────── */
+    /* ── glow breath (time-based) ──────────────────────────────── */
     if (glowRef.current) {
       const glow = 1 + Math.sin(t * 1.2) * 0.1 * speed;
       glowRef.current.scale.setScalar(glow);
@@ -115,7 +115,6 @@ export function HeroModel() {
           color="#6b8cff"
           transparent
           opacity={0.06}
-          blending={AdditiveBlending}
           depthWrite={false}
         />
       </mesh>
@@ -192,7 +191,7 @@ export function HeroModel() {
   );
 }
 
-/* ── small orbiting data node ────────────────────────────────── */
+/* ── small orbiting data node (time-based only, no scroll) ─────── */
 
 function DataNode({ index }: { index: number }) {
   const ref = useRef<Mesh>(null);

@@ -1,15 +1,26 @@
 /**
  * Ambient wireframe fragments orbiting the reactor core.
- * Visible during About and Skills sections. Limited to two
- * geometric families (octahedron + icosahedron wireframes)
- * in a cool monochrome palette with slow elliptical orbits.
+ *
+ * ── Migration notes ───────────────────────────────────────────────
+ * Visibility is now driven by the timeline system via the envelope()
+ * utility and the FRAGMENT_ENVELOPE config. No direct scroll access.
+ *
+ * Each fragment also reacts to timeline velocity — orbital speed
+ * increases subtly when the user is actively scrolling, creating
+ * an intentional "the scene is alive" feel.
+ *
+ * Performance: opacity and position are mutated in useFrame via refs.
+ * The fragment array is memoised and never re-created.
  */
 
 import { useRef, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import { MathUtils } from "three";
 import type { Mesh, MeshStandardMaterial } from "three";
-import { scrollState } from "../config/sections";
+
+import { useTimeline } from "./Timeline";
+import { envelope } from "./Hooks/easing";
+import { FRAGMENT_ENVELOPE } from "../config/animation.config";
 
 /* ── cool monochrome palette ─────────────────────────── */
 
@@ -38,19 +49,19 @@ interface FragmentCfg {
 function Fragment({ cfg }: { cfg: FragmentCfg }) {
   const meshRef = useRef<Mesh>(null);
   const matRef = useRef<MeshStandardMaterial>(null);
+  const { getState } = useTimeline();
 
   useFrame((state) => {
     if (!meshRef.current || !matRef.current) return;
     const t = state.clock.elapsedTime;
+    const { progress, velocity } = getState();
 
-    /* ── visibility envelope: about + skills (progress 0.10–0.46) ── */
-    const p = scrollState.progress;
-    let vis = 0;
-    if (p >= 0.1 && p <= 0.46) {
-      if (p < 0.18) vis = (p - 0.1) / 0.08;
-      else if (p > 0.38) vis = 1 - (p - 0.38) / 0.08;
-      else vis = 1;
-    }
+    /* ── visibility envelope from config (no hardcoded ranges) ── */
+    const vis = envelope(
+      progress,
+      [FRAGMENT_ENVELOPE.fadeInStart, FRAGMENT_ENVELOPE.fadeInEnd],
+      [FRAGMENT_ENVELOPE.fadeOutStart, FRAGMENT_ENVELOPE.fadeOutEnd],
+    );
 
     matRef.current.opacity = MathUtils.lerp(
       matRef.current.opacity,
@@ -59,8 +70,11 @@ function Fragment({ cfg }: { cfg: FragmentCfg }) {
     );
     meshRef.current.visible = matRef.current.opacity > 0.005;
 
+    /* ── orbital speed reacts to scroll velocity ── */
+    const velocityBoost = 1 + Math.abs(velocity) * 8;
+
     /* ── elliptical orbit ── */
-    const angle = cfg.startAngle + t * cfg.speed;
+    const angle = cfg.startAngle + t * cfg.speed * velocityBoost;
     meshRef.current.position.x = Math.cos(angle) * cfg.radius;
     meshRef.current.position.z =
       Math.sin(angle) * cfg.radius * cfg.eccentricity;
