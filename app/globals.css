@@ -104,9 +104,69 @@ body {
   50% { transform: translateY(-14px) translateX(6px); opacity: 0.3; }
 }
 
+/* ── Cinematic Typography System ────────────────────────── */
+
+/* Light sweep across gradient text */
+@keyframes cinematicSweep {
+  0%, 100% {
+    background-position: 200% center;
+  }
+  50% {
+    background-position: -100% center;
+  }
+}
+
+/* Holographic scanline drift */
+@keyframes scanlineDrift {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(4px); }
+}
+
+/* Ambient glow breathing — simulates scene light influence */
+@keyframes glowBreath {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.85; }
+}
+
+/* Headline — animated light sweep across gradient text */
+.cinematic-headline {
+  background: linear-gradient(
+    90deg,
+    #ffffff 0%,
+    #ffffff 40%,
+    rgba(79, 209, 255, 0.85) 50%,
+    #ffffff 60%,
+    #ffffff 100%
+  );
+  background-size: 200% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: cinematicSweep 8s ease-in-out infinite;
+}
+
+/* Subheadline — static directional gradient, no animation */
+.cinematic-subheadline {
+  background: linear-gradient(
+    135deg,
+    #ffffff 0%,
+    rgba(225, 240, 255, 0.95) 60%,
+    rgba(79, 209, 255, 0.8) 100%
+  );
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
 /* ── reduced-motion fallback ────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
+  }
+
+  .cinematic-headline {
+    animation: none;
+    background: none;
+    -webkit-text-fill-color: #ffffff;
   }
 }
