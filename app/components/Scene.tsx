@@ -1,10 +1,48 @@
 "use client";
 
 /**
- * Main Scene component.
- * Orchestrates the fixed 3D canvas (with mouse/scroll tracking,
- * performance detection, studio lighting, and post-processing)
- * and the scrollable HTML sections.
+ * Root Scene component.
+ *
+ * Orchestrates the fixed 3D canvas and scrollable HTML sections.
+ * The TimelineController is the single source of truth for all
+ * scroll-driven animation — no component reads scroll directly.
+ *
+ * ── Architecture ────────────────────────────────────────────────
+ *
+ *   <Canvas>
+ *     <TimelineController>          ← captures scroll, smooths, resolves chapters
+ *       <CameraRig waypoints />     ← interpolates camera through waypoints
+ *       <HeroModel />               ← reactor core (timeline-driven rotation/scale)
+ *       <FloatingElements />         ← fragments (timeline-driven visibility)
+ *       <ContactOrb />              ← contact orb (chapter-driven fade)
+ *       <DebugOverlay />            ← press 'D' to toggle timeline HUD
+ *     </TimelineController>
+ *   </Canvas>
+ *
+ *   <main>
+ *     <HeroSection />  <AboutSection />  <SkillsSection />
+ *     <ProjectsSection />  <ContactSection />
+ *   </main>
+ *
+ * ── Data flow ───────────────────────────────────────────────────
+ *
+ *   window.scrollY → TimelineController → timeline context
+ *     → CameraRig      (reads progress, interpolates waypoints)
+ *     → HeroModel       (reads progress via useWaypointValue)
+ *     → FloatingElements (reads progress via envelope)
+ *     → ContactOrb      (reads chapter progress)
+ *
+ *   mousemove → mouseState (shared mutable store, NOT timeline)
+ *     → CameraRig (parallax)
+ *     → HeroModel  (reactivity)
+ *
+ * ── Performance notes ───────────────────────────────────────────
+ *
+ *   - deviceState detection runs once on mount (useEffect).
+ *   - mouseState is written by a passive listener (no React state).
+ *   - isLowPerf is the ONLY React state — controls conditional rendering
+ *     of shadows, particles, and post-processing at mount time.
+ *   - All per-frame animation runs in useFrame inside child components.
  */
 
 import { useEffect, Suspense, useState, startTransition } from "react";
@@ -12,13 +50,16 @@ import { Canvas } from "@react-three/fiber";
 import { Environment, OrbitControls } from "@react-three/drei";
 import { EffectComposer, Bloom, Vignette } from "@react-three/postprocessing";
 
-import { scrollState, mouseState, deviceState } from "./config/sections";
-import { SceneController } from "./scene/SceneController";
+import { mouseState, deviceState } from "./config/sections";
+import { TimelineController } from "./scene/Timeline";
+import { CameraRig } from "./scene/Camera";
+import { CAMERA_WAYPOINTS } from "./scene/Camera/camera.config";
 import { HeroModel } from "./scene/HeroModel";
 import { FloatingElements } from "./scene/FloatingElements";
 import { ContactOrb } from "./scene/ContactOrb";
 import { Particles } from "./scene/Particles";
 import { Ground } from "./scene/Ground";
+import { DebugOverlay } from "./scene/Objects/DebugOverlay";
 import { HeroSection } from "./sections/HeroSection";
 import { AboutSection } from "./sections/AboutSection";
 import { SkillsSection } from "./sections/SkillsSection";
@@ -41,7 +82,7 @@ function CanvasFallback() {
 export default function Scene() {
   const [isLowPerf, setIsLowPerf] = useState(false);
 
-  /* performance + reduced-motion detection */
+  /* ── performance + reduced-motion detection (runs once) ──────── */
   useEffect(() => {
     const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     const cores = navigator.hardwareConcurrency || 4;
@@ -67,7 +108,6 @@ export default function Scene() {
       lowPerf = true;
     }
 
-    /* deferred state update avoids synchronous cascade */
     if (lowPerf) startTransition(() => setIsLowPerf(true));
 
     const onMqChange = (e: MediaQueryListEvent) => {
@@ -77,18 +117,7 @@ export default function Scene() {
     return () => mq.removeEventListener("change", onMqChange);
   }, []);
 
-  /* scroll tracking */
-  useEffect(() => {
-    const onScroll = () => {
-      const maxScroll = document.body.scrollHeight - window.innerHeight;
-      scrollState.targetProgress =
-        maxScroll > 0 ? window.scrollY / maxScroll : 0;
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  /* mouse tracking (normalised –1 … 1) */
+  /* ── mouse tracking (normalised –1 … 1) — NOT scroll ────────── */
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
       mouseState.x = (e.clientX / window.innerWidth) * 2 - 1;
@@ -98,9 +127,14 @@ export default function Scene() {
     return () => window.removeEventListener("mousemove", onMove);
   }, []);
 
+  /*
+   * NOTE: No scroll listener here.
+   * Scroll capture is handled internally by TimelineController.
+   */
+
   return (
     <>
-      {/* Fixed 3D Canvas */}
+      {/* ── Fixed 3D Canvas ─────────────────────────────────────── */}
       <div style={styles.canvasWrapper}>
         <Canvas
           shadows={!isLowPerf}
@@ -109,69 +143,79 @@ export default function Scene() {
           gl={{ antialias: true }}
           style={{ width: "100%", height: "100%" }}
         >
-          {/* ── Studio lighting ────────────────────────────── */}
-          <ambientLight intensity={0.06} color="#1a1a3e" />
+          {/* ── Timeline boundary ───────────────────────────────── */}
+          {/*
+            Everything inside <TimelineController> can access the
+            timeline via useTimeline(). Scroll is captured here and
+            smoothed with frame-rate-independent exponential damping.
+          */}
+          <TimelineController>
+            {/* Camera — interpolates waypoints + parallax + drift */}
+            <CameraRig waypoints={CAMERA_WAYPOINTS} />
 
-          {/* Key light — warm neutral */}
-          <directionalLight
-            position={[5, 8, 3]}
-            intensity={0.7}
-            color="#fff5e6"
-            castShadow={!isLowPerf}
-            shadow-mapSize-width={1024}
-            shadow-mapSize-height={1024}
-            shadow-camera-near={0.5}
-            shadow-camera-far={25}
-            shadow-camera-left={-6}
-            shadow-camera-right={6}
-            shadow-camera-top={6}
-            shadow-camera-bottom={-6}
-            shadow-bias={-0.0001}
-          />
+            {/* ── Studio lighting ──────────────────────────────── */}
+            <ambientLight intensity={0.06} color="#1a1a3e" />
 
-          {/* Rim light — cool blue accent */}
-          <directionalLight
-            position={[-3, 2, -4]}
-            intensity={0.5}
-            color="#4fd1ff"
-          />
+            <directionalLight
+              position={[5, 8, 3]}
+              intensity={0.7}
+              color="#fff5e6"
+              castShadow={!isLowPerf}
+              shadow-mapSize-width={1024}
+              shadow-mapSize-height={1024}
+              shadow-camera-near={0.5}
+              shadow-camera-far={25}
+              shadow-camera-left={-6}
+              shadow-camera-right={6}
+              shadow-camera-top={6}
+              shadow-camera-bottom={-6}
+              shadow-bias={-0.0001}
+            />
 
-          {/* Fill — soft accent */}
-          <directionalLight
-            position={[0, -2, 5]}
-            intensity={0.15}
-            color="#6b8cff"
-          />
+            <directionalLight
+              position={[-3, 2, -4]}
+              intensity={0.5}
+              color="#4fd1ff"
+            />
 
-          {/* Core glow point light */}
-          <pointLight
-            position={[0, 0.5, 0]}
-            intensity={1.2}
-            color="#6b8cff"
-            distance={6}
-            decay={2}
-          />
+            <directionalLight
+              position={[0, -2, 5]}
+              intensity={0.15}
+              color="#6b8cff"
+            />
 
-          {/* ── Scene objects ──────────────────────────────── */}
-          <SceneController />
-          <Environment preset="night" background={false} />
+            <pointLight
+              position={[0, 0.5, 0]}
+              intensity={1.2}
+              color="#6b8cff"
+              distance={6}
+              decay={2}
+            />
 
-          <Suspense fallback={<CanvasFallback />}>
-            <HeroModel />
-            <FloatingElements />
-            <ContactOrb />
-          </Suspense>
+            {/* ── Scene objects ─────────────────────────────────── */}
+            <Environment preset="night" background={false} />
 
-          {!isLowPerf && <Particles count={250} />}
-          <Ground />
+            <Suspense fallback={<CanvasFallback />}>
+              <HeroModel />
+              <FloatingElements />
+              <ContactOrb />
+            </Suspense>
 
+            {!isLowPerf && <Particles count={250} />}
+            <Ground />
+
+            {/* ── Debug overlay (press D to toggle) ────────────── */}
+            <DebugOverlay />
+          </TimelineController>
+
+          {/* OrbitControls disabled — camera is driven by CameraRig */}
           <OrbitControls
             enableZoom={false}
             enablePan={false}
             enableRotate={false}
           />
 
-          {/* ── Post-processing ────────────────────────────── */}
+          {/* ── Post-processing ─────────────────────────────────── */}
           {!isLowPerf && (
             <EffectComposer>
               <Bloom
@@ -186,7 +230,13 @@ export default function Scene() {
         </Canvas>
       </div>
 
-      {/* Scrollable HTML Sections */}
+      {/* ── Scrollable HTML Sections ────────────────────────────── */}
+      {/*
+        HTML sections drive the scroll position, which the
+        TimelineController inside the Canvas reads and smooths.
+        Sections use framer-motion for their own UI animations
+        (useInView, hover effects, sticky scroll for projects).
+      */}
       <main style={styles.main}>
         <HeroSection />
         <AboutSection />
